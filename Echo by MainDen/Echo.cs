@@ -195,7 +195,7 @@ namespace MainDen.Modules.IO
             get
             {
                 lock (lStaticSettings)
-                    return _Default ??= new Echo();
+                    return _Default ?? (_Default = new Echo());
             }
         }
     }
