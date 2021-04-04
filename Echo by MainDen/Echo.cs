@@ -1,9 +1,16 @@
 ﻿using System;
 
-namespace MainDen.Modules
+namespace MainDen.Modules.IO
 {
     public class Echo
     {
+        [Flags]
+        public enum Output
+        {
+            None = 0,
+            Custom = 1,
+            Console = 2,
+        }
         public class EchoException : Exception
         {
             public EchoException() : base() { }
@@ -12,23 +19,21 @@ namespace MainDen.Modules
         }
         public class EchoWriteException : EchoException
         {
-            public EchoWriteException() : base() { }
-            public EchoWriteException(string message) : base(message) { }
-            public EchoWriteException(string message, Exception innerException) : base(message, innerException) { }
+            public EchoWriteException() : base() { output = Output.None; }
+            public EchoWriteException(string message) : base(message) { output = Output.None; }
+            public EchoWriteException(string message, Exception innerException) : base(message, innerException) { output = Output.None; }
+            public EchoWriteException(Output output, string message) : base(message) { this.output = output; }
+            public EchoWriteException(Output output, string message, Exception innerException) : base(message, innerException) { this.output = output; }
+            public EchoWriteException(Output output) : this(output, $"Unable write to {output}.") { }
+            public EchoWriteException(Output output, Exception innerException) : this(output, $"Unable write to {output}.", innerException) { }
+            private readonly Output output;
+            public Output Output { get => output; }
         }
         public class EchoSettingsException : EchoException
         {
             public EchoSettingsException() : base() { }
             public EchoSettingsException(string message) : base(message) { }
             public EchoSettingsException(string message, Exception innerException) : base(message, innerException) { }
-        }
-        public Echo() { }
-        [Flags]
-        private enum Output
-        {
-            None = 0,
-            Custom = 1,
-            Console = 2,
         }
         private readonly object lSettings = new object();
         private string _MessageFormat = "{0}\n";
@@ -145,7 +150,7 @@ namespace MainDen.Modules
                     }
                     catch { output |= Output.Console; }
                 if (output != Output.None)
-                    throw new EchoWriteException($"Unable write to {output}.");
+                    throw new EchoWriteException(output);
             }
         }
         public void WriteCustom(string echoMessage)
@@ -183,10 +188,15 @@ namespace MainDen.Modules
                 messageFormat,
                 message);
         }
-        private static readonly Echo _Default = new Echo();
+        private static readonly object lStaticSettings = new object();
+        private static Echo _Default;
         public static Echo Default
         {
-            get => _Default;
+            get
+            {
+                lock (lStaticSettings)
+                    return _Default ??= new Echo();
+            }
         }
     }
 }
