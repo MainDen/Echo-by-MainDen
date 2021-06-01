@@ -2,201 +2,314 @@
 
 namespace MainDen.Modules.IO
 {
+    public class EchoException : Exception
+    {
+        public EchoException() : base() { }
+        
+        public EchoException(string message) : base(message) { }
+        
+        public EchoException(string message, Exception innerException) : base(message, innerException) { }
+    }
+
+    public class EchoWriteException : EchoException
+    {
+        public EchoWriteException() : base()
+        {
+            _outputs = Echo.Outputs.None;
+        }
+        
+        public EchoWriteException(string message) : base(message)
+        {
+            _outputs = Echo.Outputs.None;
+        }
+        
+        public EchoWriteException(string message, Exception innerException) : base(message, innerException)
+        {
+            _outputs = Echo.Outputs.None;
+        }
+        
+        public EchoWriteException(Echo.Outputs outputs, string message) : base(message)
+        {
+            _outputs = outputs;
+        }
+        
+        public EchoWriteException(Echo.Outputs outputs, string message, Exception innerException) : base(message, innerException)
+        {
+            _outputs = outputs;
+        }
+        
+        public EchoWriteException(Echo.Outputs outputs) : this(outputs, $"Unable write to {outputs}.") { }
+        
+        public EchoWriteException(Echo.Outputs outputs, Exception innerException) : this(outputs, $"Unable write to {outputs}.", innerException) { }
+        
+        private readonly Echo.Outputs _outputs;
+        
+        public Echo.Outputs Outputs
+        {
+            get => _outputs;
+        }
+    }
+
+    public class EchoSettingsException : EchoException
+    {
+        public EchoSettingsException() : base() { }
+        
+        public EchoSettingsException(string message) : base(message) { }
+        
+        public EchoSettingsException(string message, Exception innerException) : base(message, innerException) { }
+    }
+
     public class Echo
     {
         [Flags]
-        public enum Output
+        public enum Outputs
         {
             None = 0,
             Custom = 1,
             Console = 2,
         }
-        public class EchoException : Exception
-        {
-            public EchoException() : base() { }
-            public EchoException(string message) : base(message) { }
-            public EchoException(string message, Exception innerException) : base(message, innerException) { }
-        }
-        public class EchoWriteException : EchoException
-        {
-            public EchoWriteException() : base() { output = Output.None; }
-            public EchoWriteException(string message) : base(message) { output = Output.None; }
-            public EchoWriteException(string message, Exception innerException) : base(message, innerException) { output = Output.None; }
-            public EchoWriteException(Output output, string message) : base(message) { this.output = output; }
-            public EchoWriteException(Output output, string message, Exception innerException) : base(message, innerException) { this.output = output; }
-            public EchoWriteException(Output output) : this(output, $"Unable write to {output}.") { }
-            public EchoWriteException(Output output, Exception innerException) : this(output, $"Unable write to {output}.", innerException) { }
-            private readonly Output output;
-            public Output Output { get => output; }
-        }
-        public class EchoSettingsException : EchoException
-        {
-            public EchoSettingsException() : base() { }
-            public EchoSettingsException(string message) : base(message) { }
-            public EchoSettingsException(string message, Exception innerException) : base(message, innerException) { }
-        }
-        private readonly object lSettings = new object();
+
+        private readonly object _lSettings = new object();
+
         private string _MessageFormat = "{0}\n";
+
+        private bool _WriteToCustom = true;
+
+        private bool _WriteToConsole = true;
+
+        private bool _AllowWriteNullMessages = false;
+
+        private bool _AutoDisableWriteOutputs = true;
+
+        private bool _IgnoreWriteExceptions = false;
+
+        private Action<string> _Custom;
+
         public string MessageFormat
         {
             get
             {
-                lock (lSettings)
+                lock (_lSettings)
                     return _MessageFormat;
             }
             set
             {
-                if (value is null)
-                    throw new ArgumentNullException(nameof(value));
-                try
+                lock (_lSettings)
                 {
-                    GetMessage(value, "Message");
-                    lock (lSettings)
+                    if (value is null)
+                        throw new ArgumentNullException();
+
+                    try
+                    {
+                        GetEchoMessage(value, "");
+
                         _MessageFormat = value;
+                    }
+                    catch (Exception e)
+                    {
+                        throw new EchoSettingsException("Invalid message format.", e);
+                    }
                 }
-                catch (Exception e) { throw new EchoSettingsException("Invalid message format.", e); }
             }
         }
-        public string GetMessage(string message)
-        {
-            if (message is null)
-                throw new ArgumentNullException(nameof(message));
-            lock (lSettings)
-                return string.Format(
-                    _MessageFormat,
-                    message);
-        }
-        private bool _WriteToCustom = true;
+
         public bool WriteToCustom
         {
             get
             {
-                lock (lSettings)
+                lock (_lSettings)
                     return _WriteToCustom;
             }
             set
             {
-                lock (lSettings)
+                lock (_lSettings)
                     _WriteToCustom = value;
             }
         }
-        private bool _WriteToConsole = true;
+
         public bool WriteToConsole
         {
             get
             {
-                lock (lSettings)
+                lock (_lSettings)
                     return _WriteToConsole;
             }
             set
             {
-                lock (lSettings)
+                lock (_lSettings)
                     _WriteToConsole = value;
             }
         }
-        private bool _AllowWriteNullMessages = false;
+
         public bool AllowWriteNullMessages
         {
             get
             {
-                lock (lSettings)
+                lock (_lSettings)
                     return _AllowWriteNullMessages;
             }
             set
             {
-                lock (lSettings)
+                lock (_lSettings)
                     _AllowWriteNullMessages = value;
             }
         }
-        private Action<string> _CustomWrite;
-        public event Action<string> CustomWrite
+
+        public bool AutoDisableWriteOutputs
+        {
+            get
+            {
+                lock (_lSettings)
+                    return _AutoDisableWriteOutputs;
+            }
+            set
+            {
+                lock (_lSettings)
+                    _AutoDisableWriteOutputs = value;
+            }
+        }
+
+        public bool IgnoreWriteExceptions
+        {
+            get
+            {
+                lock (_lSettings)
+                    return _IgnoreWriteExceptions;
+            }
+            set
+            {
+                lock (_lSettings)
+                    _IgnoreWriteExceptions = value;
+            }
+        }
+
+        public event Action<string> Custom
         {
             add
             {
-                if (value is null)
-                    throw new ArgumentNullException(nameof(value));
-                lock (lSettings)
-                    _CustomWrite += value;
+                lock (_lSettings)
+                {
+                    if (value is null)
+                        throw new ArgumentNullException();
+
+                    _Custom += value;
+                }
             }
             remove
             {
-                if (value is null)
-                    throw new ArgumentNullException(nameof(value));
-                lock (lSettings)
-                    _CustomWrite -= value;
+                lock (_lSettings)
+                {
+                    if (value is null)
+                        throw new ArgumentNullException();
+
+                    _Custom -= value;
+                }
             }
         }
-        private Output output;
+
+        public string GetEchoMessage(string message)
+        {
+            lock (_lSettings)
+            {
+                if (message is null)
+                    throw new ArgumentNullException(nameof(message));
+
+                return GetEchoMessage(_MessageFormat, message);
+            }
+        }
+
         private void WriteBase(string echoMessage)
         {
-            if (echoMessage is null)
-                if (_AllowWriteNullMessages)
-                    echoMessage = "null";
-                else
-                    throw new ArgumentNullException(nameof(echoMessage));
-            lock (lSettings)
+            lock (_lSettings)
             {
-                output = Output.None;
-                if (WriteToCustom)
+                if (echoMessage is null)
+                    throw new ArgumentNullException(nameof(echoMessage));
+
+                Outputs outputs = Outputs.None;
+
+                if (_WriteToCustom)
                     try
                     {
-                        _CustomWrite?.Invoke(echoMessage);
+                        _Custom?.Invoke(echoMessage);
                     }
-                    catch { output |= Output.Custom; }
-                if (WriteToConsole)
+                    catch
+                    {
+                        outputs |= Outputs.Custom;
+                    }
+
+                if (_WriteToConsole)
                     try
                     {
                         Console.Write(echoMessage);
                     }
-                    catch { output |= Output.Console; }
-                if (output != Output.None)
-                    throw new EchoWriteException(output);
+                    catch
+                    {
+                        outputs |= Outputs.Console;
+                    }
+
+                if (_AutoDisableWriteOutputs)
+                {
+                    if (outputs.HasFlag(Outputs.Custom))
+                        _WriteToCustom = false;
+                    if (outputs.HasFlag(Outputs.Console))
+                        _WriteToConsole = false;
+                }
+
+                if (!_IgnoreWriteExceptions)
+                    if (outputs != Outputs.None)
+                        throw new EchoWriteException(outputs);
             }
         }
-        public void WriteCustom(string echoMessage)
+
+        public void WriteCustomEchoMessage(string echoMessage)
         {
-            if (echoMessage is null)
-                if (_AllowWriteNullMessages)
-                    echoMessage = "null";
-                else
-                    throw new ArgumentNullException(nameof(echoMessage));
-            lock (lSettings)
+            lock (_lSettings)
             {
+                if (echoMessage is null)
+                    throw new ArgumentNullException(nameof(echoMessage));
+
                 WriteBase(echoMessage);
             }
         }
+
         public void Write(string message)
         {
-            if (message is null)
-                if (_AllowWriteNullMessages)
-                    message = "null";
-                else
-                    throw new ArgumentNullException(nameof(message));
-            lock (lSettings)
+            lock (_lSettings)
             {
-                string echoMessage = GetMessage(message);
+                if (message is null)
+                    if (_AllowWriteNullMessages)
+                        message = "null";
+                    else
+                        throw new ArgumentNullException(nameof(message));
+
+                string echoMessage = GetEchoMessage(message);
                 WriteBase(echoMessage);
             }
         }
-        public static string GetMessage(string messageFormat, string message)
+
+        private static readonly object _lStaticSettings = new object();
+
+        private static Echo _Default;
+
+        public static Echo Default
+        {
+            get
+            {
+                lock (_lStaticSettings)
+                    return _Default ?? (_Default = new Echo());
+            }
+        }
+
+        public static string GetEchoMessage(string messageFormat, string message)
         {
             if (messageFormat is null)
                 throw new ArgumentNullException(nameof(messageFormat));
             if (message is null)
                 throw new ArgumentNullException(nameof(message));
+
             return string.Format(
                 messageFormat,
                 message);
-        }
-        private static readonly object lStaticSettings = new object();
-        private static Echo _Default;
-        public static Echo Default
-        {
-            get
-            {
-                lock (lStaticSettings)
-                    return _Default ?? (_Default = new Echo());
-            }
         }
     }
 }
